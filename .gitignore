@@ -1,0 +1,10 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+.venv/
+venv/
+.streamlit/secrets.toml
+x_auth.json
+x_posts_*.csv
+x_posts_*.xlsx

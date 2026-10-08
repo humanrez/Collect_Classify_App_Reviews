@@ -1,0 +1,12 @@
+streamlit>=1.40
+extra-streamlit-components
+python-dotenv
+pandas
+altair
+plotly
+wordcloud
+supabase>=2.31.0
+google-play-scraper
+openai
+playwright
+openpyxl
