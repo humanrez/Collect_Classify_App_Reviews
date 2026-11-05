@@ -44,10 +44,10 @@ REPUTATION_SCORE_HELP = (
     "which represents the most positive reputation."
 )
 
-# Login-page art: a small neural network diagram drawn on a <canvas> with plain JS
-# (no libraries). Gray architecture on white; nodes flash at random like twinkling
-# lights. ~26 nodes / ~126 edges, capped at ~30 fps, redrawn only on resize, and
-# static when the viewer prefers reduced motion.
+# Login-page art: an abstract neural network drawn on a <canvas> with plain JS (no
+# libraries). Gray on white, no labels. Nodes sit in loose layers, drift slowly around
+# a home position and flash at random like twinkling lights. ~45 nodes / ~120 edges,
+# capped at ~30 fps, and static when the viewer prefers reduced motion.
 LOGIN_ANN_HTML = """<!doctype html>
 <html>
 <head>
@@ -58,88 +58,101 @@ LOGIN_ANN_HTML = """<!doctype html>
 </style>
 </head>
 <body>
-<canvas id="ann" role="img" aria-label="Animated neural network diagram"></canvas>
+<canvas id="ann" role="img" aria-label="Abstract animated neural network"></canvas>
 <script>
 (function () {
   var canvas = document.getElementById('ann');
   var ctx = canvas.getContext('2d');
-  var LAYERS = [4, 6, 7, 6, 3];
-  var LABELS = ['Input', 'Hidden 1', 'Hidden 2', 'Hidden 3', 'Output'];
+  var LAYERS = [5, 8, 10, 9, 7, 4];
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Grayscale only: light gray for the architecture, darker gray for a flash.
   var EDGE = [156, 163, 175];   // gray-400
-  var RING = [156, 163, 175];
   var IDLE = [229, 231, 235];   // gray-200 node fill at rest
   var FLASH = [55, 65, 81];     // gray-700 node fill at peak
 
-  var W = 0, H = 0, nodes = [], edges = [], layerX = [];
+  var W = 0, H = 0, nodes = [], edges = [];
 
   function mix(a, b, t) {
     return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   }
   function rgb(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
 
   function build() {
-    nodes = []; edges = []; layerX = [];
-    var padX = Math.max(34, W * 0.09), padTop = 30, padBottom = W >= 380 ? 44 : 28;
-    var innerW = W - padX * 2, innerH = H - padTop - padBottom;
-    var gap = innerH / Math.max.apply(null, LAYERS);
-    var r = Math.max(5, Math.min(11, gap * 0.28, innerW / LAYERS.length * 0.16));
-    var cy = padTop + innerH / 2;
-    var prev = null;
+    nodes = []; edges = [];
+    var padX = W * 0.07, padY = Math.min(50, H * 0.08);
+    var innerW = W - padX * 2, innerH = H - padY * 2;
+    var colW = innerW / (LAYERS.length - 1);
+    var unit = Math.min(W, H);
+    var layers = [];
     LAYERS.forEach(function (n, li) {
-      var x = padX + innerW * li / (LAYERS.length - 1);
-      layerX.push(x);
       var cur = [];
+      var gap = innerH / n;
+      var shift = rnd(-0.25, 0.25) * gap;                 // each layer is offset a little
       for (var i = 0; i < n; i++) {
+        var hx = padX + colW * li + rnd(-0.22, 0.22) * colW;
+        var hy = padY + gap * (i + 0.5) + shift + rnd(-0.28, 0.28) * gap;
+        hy = Math.max(padY * 0.6, Math.min(H - padY * 0.6, hy));
         var node = {
-          x: x, y: cy + (i - (n - 1) / 2) * gap, r: r,
-          phase: Math.random() * 6.2832,      // random start so nodes never flash in sync
-          speed: 0.9 + Math.random() * 1.6,   // 2.5s - 7s between flashes
+          hx: hx, hy: hy, x: hx, y: hy, layer: li,
+          r: rnd(3, 8) * Math.max(0.8, Math.min(1.4, unit / 520)),
+          ax: rnd(8, 22), ay: rnd(8, 22),                  // drift amplitude (px)
+          fx: rnd(0.12, 0.35), fy: rnd(0.12, 0.35),        // drift speed (rad/s)
+          px: rnd(0, 6.2832), py: rnd(0, 6.2832),
+          phase: rnd(0, 6.2832),                           // random start: never flash in sync
+          speed: rnd(0.9, 2.5),                            // 2.5s - 7s between flashes
           v: 0
         };
         nodes.push(node); cur.push(node);
       }
-      if (prev) prev.forEach(function (a) { cur.forEach(function (b) { edges.push([a, b]); }); });
-      prev = cur;
+      layers.push(cur);
     });
+
+    // Abstract wiring: each node links to its 2-3 nearest nodes in the next layer,
+    // plus the occasional skip connection two layers ahead.
+    function link(a, pool, k) {
+      pool.slice().sort(function (p, q) {
+        return Math.hypot(p.hx - a.hx, p.hy - a.hy) - Math.hypot(q.hx - a.hx, q.hy - a.hy);
+      }).slice(0, k).forEach(function (b) { edges.push([a, b]); });
+    }
+    for (var l = 0; l < layers.length - 1; l++) {
+      layers[l].forEach(function (a) {
+        link(a, layers[l + 1], 2 + (Math.random() < 0.5 ? 1 : 0));
+        if (l + 2 < layers.length && Math.random() < 0.12) link(a, layers[l + 2], 1);
+      });
+    }
   }
 
   function draw(t) {
     ctx.clearRect(0, 0, W, H);
 
-    // sin^6 keeps only the sharp top of each wave, so a node is dim most of the
-    // time and flashes briefly: that is what reads as "twinkling".
     for (var i = 0; i < nodes.length; i++) {
-      var s = Math.sin(t * nodes[i].speed + nodes[i].phase);
-      nodes[i].v = s > 0 ? Math.pow(s, 6) : 0;
+      var n = nodes[i];
+      n.x = n.hx + Math.sin(t * n.fx + n.px) * n.ax;
+      n.y = n.hy + Math.cos(t * n.fy + n.py) * n.ay;
+      // sin^6 keeps only the sharp top of each wave: dim most of the time, brief flash.
+      var s = Math.sin(t * n.speed + n.phase);
+      n.v = s > 0 ? Math.pow(s, 6) : 0;
     }
 
     ctx.lineWidth = 1;
     for (var e = 0; e < edges.length; e++) {
       var a = edges[e][0], b = edges[e][1];
       var glow = Math.max(a.v, b.v);
-      ctx.strokeStyle = 'rgba(' + EDGE[0] + ',' + EDGE[1] + ',' + EDGE[2] + ',' + (0.30 + 0.45 * glow).toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(' + EDGE[0] + ',' + EDGE[1] + ',' + EDGE[2] + ',' + (0.28 + 0.5 * glow).toFixed(3) + ')';
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
 
     for (var k = 0; k < nodes.length; k++) {
-      var n = nodes[k];
-      if (n.v > 0.02) {
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (1.6 + 1.6 * n.v), 0, 6.2832);
-        ctx.fillStyle = 'rgba(107,114,128,' + (0.16 * n.v).toFixed(3) + ')'; ctx.fill();
+      var m = nodes[k];
+      if (m.v > 0.02) {
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r * (1.8 + 2.2 * m.v), 0, 6.2832);
+        ctx.fillStyle = 'rgba(107,114,128,' + (0.16 * m.v).toFixed(3) + ')'; ctx.fill();
       }
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.2832);
-      ctx.fillStyle = rgb(mix(IDLE, FLASH, n.v)); ctx.fill();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = rgb(RING); ctx.stroke();
-    }
-
-    if (W >= 380) {
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '11px system-ui, -apple-system, "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      for (var l = 0; l < layerX.length; l++) ctx.fillText(LABELS[l], layerX[l], H - 16);
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.2832);
+      ctx.fillStyle = rgb(mix(IDLE, FLASH, m.v)); ctx.fill();
+      ctx.lineWidth = 1.25; ctx.strokeStyle = 'rgb(' + EDGE[0] + ',' + EDGE[1] + ',' + EDGE[2] + ')'; ctx.stroke();
     }
   }
 
@@ -168,7 +181,7 @@ LOGIN_ANN_HTML = """<!doctype html>
 </script>
 </body>
 </html>"""
-LOGIN_ANN_HEIGHT = 400
+LOGIN_ANN_HEIGHT = 560
 
 load_dotenv()
 st.set_page_config(page_title="HYDRA Dashboard", layout="wide")
@@ -196,8 +209,8 @@ st.markdown(
     /* Request Intelligence: 15px left/right padding on the table and reviews boxes */
     .st-key-ri_table_box, .st-key-ri_reviews_box { padding-left: 15px !important; padding-right: 15px !important; }
 
-    /* Login page: thin frame around the neural-network animation. */
-    .st-key-login_art iframe { border: 1px solid #e5e7eb; border-radius: 12px; }
+    /* Login page: borderless animation panel that scales with the window height. */
+    .st-key-login_art iframe { border: 0 !important; border-radius: 0; height: clamp(420px, calc(100vh - 260px), 760px) !important; }
 
     /* Hidden on screen; only shown by the print stylesheet below. */
     .print-only { display: none; }
@@ -352,9 +365,9 @@ def login_gate():
                 st.session_state.cookie_restore_failed_token = refresh_token
                 cookie_manager.delete(COOKIE_REFRESH_TOKEN, key="delete_refresh_token_invalid")
 
-    # Layar login terbagi 50/50: form di kiri, animasi neural network di kanan.
+    # Layar login: form 30% di kiri, animasi neural network 70% di kanan.
     # (Di layar sempit Streamlit menumpuk kolom: form dulu, animasi di bawahnya.)
-    col_form, col_art = st.columns(2, gap="large", vertical_alignment="center")
+    col_form, col_art = st.columns([3, 7], gap="large", vertical_alignment="center")
 
     with col_art:
         with st.container(key="login_art"):
