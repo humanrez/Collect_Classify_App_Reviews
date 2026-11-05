@@ -342,56 +342,56 @@ def render_login_animation():
         components.html(LOGIN_ANN_HTML, height=LOGIN_ANN_HEIGHT)
 
 
-def _active_theme():
-    """'dark' / 'light' as Streamlit reports it (newer versions), else None."""
-    try:
-        t = st.context.theme.type
-        return t if t in ("dark", "light") else None
-    except Exception:
-        return None
-
-
 def inject_login_css():
-    # Card colours / logo colour per theme. When Streamlit can't tell us the theme
-    # (older versions) fall back to the browser's prefers-color-scheme, which is what
-    # Streamlit's default "match system" theme follows anyway.
-    light = (
-        "--lg-card-bg: rgba(255,255,255,0.86); --lg-card-border: rgba(15,23,42,0.10);"
-        "--lg-card-shadow: 0 24px 60px rgba(15,23,42,0.14); --lg-logo-filter: brightness(0);"
-    )
-    dark = (
-        "--lg-card-bg: rgba(24,26,38,0.80); --lg-card-border: rgba(255,255,255,0.10);"
-        "--lg-card-shadow: 0 24px 60px rgba(0,0,0,0.55); --lg-logo-filter: none;"
-    )
-    theme = _active_theme()
-    if theme == "dark":
-        vars_css = f":root {{ {dark} }}"
-    elif theme == "light":
-        vars_css = f":root {{ {light} }}"
-    else:
-        vars_css = f":root {{ {light} }} @media (prefers-color-scheme: dark) {{ :root {{ {dark} }} }}"
-
+    # The card is navy in every theme, so it reads on a white page and on a black one,
+    # and the (white) HYDRA logo always sits on a dark surface.
     st.markdown(
-        f"""
+        """
         <style>
-        {vars_css}
-
         /* Animation: full-window layer behind everything (page background shows through). */
-        .st-key-login_art {{ position: fixed !important; inset: 0; z-index: 0; pointer-events: none; }}
-        .st-key-login_art > div, .st-key-login_art [data-testid="stElementContainer"] {{ width: 100vw !important; height: 100vh !important; }}
-        .st-key-login_art iframe {{ width: 100vw !important; height: 100vh !important; border: 0 !important;
-                                    background: transparent !important; display: block; }}
+        .st-key-login_art { position: fixed !important; inset: 0; z-index: 0; pointer-events: none; }
+        .st-key-login_art > div, .st-key-login_art [data-testid="stElementContainer"] { width: 100vw !important; height: 100vh !important; }
+        .st-key-login_art iframe { width: 100vw !important; height: 100vh !important; border: 0 !important;
+                                   background: transparent !important; display: block; }
 
-        /* Login card: centred, rounded, floats above the animation. */
-        .st-key-login_card {{ position: relative; z-index: 1; max-width: 440px; margin: 4vh auto 0 auto;
-                              padding: 2.2rem 2.2rem 1.8rem 2.2rem; border-radius: 22px;
-                              background: var(--lg-card-bg); border: 1px solid var(--lg-card-border);
-                              box-shadow: var(--lg-card-shadow);
-                              -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }}
-        .st-key-login_card [data-testid="stForm"] {{ border: 0 !important; padding: 0 !important; }}
-        .st-key-login_card [data-testid="stFormSubmitButton"] button {{ width: 100%; border-radius: 999px; }}
-        .login-logo {{ display: block; width: 200px; max-width: 70%; height: auto; margin: 0 auto 1.4rem auto;
-                       filter: var(--lg-logo-filter); }}
+        /* Login card: navy, centred, rounded, floats above the animation. */
+        .st-key-login_card { position: relative; z-index: 1; max-width: 440px; margin: 4vh auto 0 auto;
+                             padding: 2.2rem 2.2rem 1.8rem 2.2rem; border-radius: 22px;
+                             background: rgba(15, 28, 70, 0.94); border: 1px solid rgba(120, 150, 230, 0.28);
+                             box-shadow: 0 24px 60px rgba(2, 8, 30, 0.45);
+                             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+        .st-key-login_card [data-testid="stForm"] { border: 0 !important; padding: 0 !important; }
+        .login-logo { display: block; width: 200px; max-width: 70%; height: auto; margin: 0 auto 1.4rem auto; }
+
+        /* Text + fields on navy. */
+        .st-key-login_card label, .st-key-login_card label p,
+        .st-key-login_card [data-testid="stWidgetLabel"] p { color: #dbe4ff !important; }
+        .st-key-login_card [data-testid="stCaptionContainer"] { color: #aebbe6 !important; }
+        .st-key-login_card [data-baseweb="input"], .st-key-login_card [data-baseweb="base-input"],
+        .st-key-login_card [data-testid="stTextInputRootElement"] {
+            background-color: rgba(255, 255, 255, 0.08) !important; border-color: rgba(255, 255, 255, 0.16) !important; }
+        .st-key-login_card input { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+                                   caret-color: #ffffff; background: transparent !important; }
+        .st-key-login_card [data-baseweb="input"]:focus-within { border-color: #6f8fe0 !important; }
+        .st-key-login_card input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #1b2c66 inset !important;
+                                                    -webkit-text-fill-color: #ffffff !important; }
+        .st-key-login_card [data-baseweb="input"] > div, .st-key-login_card [data-baseweb="input"] button,
+        .st-key-login_card [data-testid="stTextInputRootElement"] > div { background-color: transparent !important; }
+        .st-key-login_card [data-testid="stTextInputRootElement"] button,
+        .st-key-login_card [data-testid="stTextInputRootElement"] button *,
+        .st-key-login_card [data-testid="stTextInputRootElement"] [data-testid="stIconMaterial"] { color: #c3d0f5 !important; }
+        .st-key-login_card [data-testid="stTextInputRootElement"] button svg,
+        .st-key-login_card [data-baseweb="input"] svg { color: #c3d0f5 !important; fill: #c3d0f5 !important; }
+
+        /* Login button: full width, accent navy-blue. */
+        .st-key-login_card [data-testid="stFormSubmitButton"],
+        .st-key-login_card [data-testid="stFormSubmitButton"] > div { width: 100% !important; }
+        .st-key-login_card [data-testid="stFormSubmitButton"] button {
+            width: 100% !important; border-radius: 999px; background: #4066C4; border: 1px solid #4066C4; color: #ffffff; }
+        .st-key-login_card [data-testid="stFormSubmitButton"] button:hover,
+        .st-key-login_card [data-testid="stFormSubmitButton"] button:focus-visible {
+            background: #5478d6; border-color: #5478d6; color: #ffffff; }
+        .st-key-login_card [data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -436,7 +436,10 @@ def login_gate():
         with st.form("login_form"):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Masuk")
+            try:
+                submitted = st.form_submit_button("Masuk", width="stretch")
+            except TypeError:  # older Streamlit: no width= parameter
+                submitted = st.form_submit_button("Masuk", use_container_width=True)
         if submitted:
             # Tahap 1: cek email + password.
             try:
