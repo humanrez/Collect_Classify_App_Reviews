@@ -45,15 +45,15 @@ REPUTATION_SCORE_HELP = (
 )
 
 # Login-page art: an abstract neural network drawn on a <canvas> with plain JS (no
-# libraries). Gray on white, no labels. Nodes sit in loose layers, drift slowly around
-# a home position and flash at random like twinkling lights. ~45 nodes / ~120 edges,
+# libraries). Transparent background, navy ink readable on white and on black, no labels. Nodes sit in loose layers, drift slowly around
+# a home position and flash at random like twinkling lights. Transparent canvas, navy ink, amber flashes. ~45 nodes / ~120 edges,
 # capped at ~30 fps, and static when the viewer prefers reduced motion.
 LOGIN_ANN_HTML = """<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   canvas { display: block; width: 100%; height: 100%; }
 </style>
 </head>
@@ -66,17 +66,15 @@ LOGIN_ANN_HTML = """<!doctype html>
   var LAYERS = [5, 8, 10, 9, 7, 4];
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Grayscale only: light gray for the architecture, darker gray for a flash.
-  var EDGE = [156, 163, 175];   // gray-400
-  var IDLE = [229, 231, 235];   // gray-200 node fill at rest
-  var FLASH = [55, 65, 81];     // gray-700 node fill at peak
+  // One mid navy (#4066C4) that keeps contrast on both a white page (~5:1) and a
+  // black page (~4:1). Everything is the same ink at different opacity, so the
+  // canvas stays transparent and inherits whatever the page background is.
+  var INK = '64,102,196';
+  // Gold-amber (#F59E0B) is the flash colour: a node blends from navy to amber as it peaks.
+  var AMBER = [245, 158, 11], NAVY = [64, 102, 196];
 
   var W = 0, H = 0, nodes = [], edges = [];
 
-  function mix(a, b, t) {
-    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  }
-  function rgb(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
   function rnd(a, b) { return a + Math.random() * (b - a); }
 
   function build() {
@@ -140,19 +138,24 @@ LOGIN_ANN_HTML = """<!doctype html>
     for (var e = 0; e < edges.length; e++) {
       var a = edges[e][0], b = edges[e][1];
       var glow = Math.max(a.v, b.v);
-      ctx.strokeStyle = 'rgba(' + EDGE[0] + ',' + EDGE[1] + ',' + EDGE[2] + ',' + (0.28 + 0.5 * glow).toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(' + INK + ',' + (0.40 + 0.50 * glow).toFixed(3) + ')';
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
 
     for (var k = 0; k < nodes.length; k++) {
       var m = nodes[k];
+      // Erase the edges under the node so a translucent fill doesn't show them through.
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 0.6, 0, 6.2832); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
       if (m.v > 0.02) {
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r * (1.8 + 2.2 * m.v), 0, 6.2832);
-        ctx.fillStyle = 'rgba(107,114,128,' + (0.16 * m.v).toFixed(3) + ')'; ctx.fill();
+        ctx.fillStyle = 'rgba(' + AMBER.join(',') + ',' + (0.26 * m.v).toFixed(3) + ')'; ctx.fill();
       }
       ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.2832);
-      ctx.fillStyle = rgb(mix(IDLE, FLASH, m.v)); ctx.fill();
-      ctx.lineWidth = 1.25; ctx.strokeStyle = 'rgb(' + EDGE[0] + ',' + EDGE[1] + ',' + EDGE[2] + ')'; ctx.stroke();
+      var fc = [0, 1, 2].map(function (q) { return Math.round(NAVY[q] + (AMBER[q] - NAVY[q]) * m.v); });
+      ctx.fillStyle = 'rgba(' + fc.join(',') + ',' + (0.35 + 0.65 * m.v).toFixed(3) + ')'; ctx.fill();
+      ctx.lineWidth = 1.25; ctx.strokeStyle = 'rgba(' + INK + ',1)'; ctx.stroke();
     }
   }
 
@@ -210,7 +213,7 @@ st.markdown(
     .st-key-ri_table_box, .st-key-ri_reviews_box { padding-left: 15px !important; padding-right: 15px !important; }
 
     /* Login page: borderless animation panel that scales with the window height. */
-    .st-key-login_art iframe { border: 0 !important; border-radius: 0; height: clamp(420px, calc(100vh - 260px), 760px) !important; }
+    .st-key-login_art iframe { background: transparent !important; border: 0 !important; border-radius: 0; height: clamp(420px, calc(100vh - 260px), 760px) !important; }
 
     /* Hidden on screen; only shown by the print stylesheet below. */
     .print-only { display: none; }
