@@ -1,7 +1,7 @@
 streamlit>=1.40
 extra-streamlit-components
 python-dotenv
-pandas
+pandas>=2.1
 altair
 plotly
 wordcloud

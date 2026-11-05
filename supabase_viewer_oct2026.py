@@ -294,7 +294,7 @@ else:
     # "review_date" is forced ahead of the raw "date" column: both represent the
     # same timestamp, but "date" carries a UTC offset (2026-08-17T13:16:52+00:00)
     # that raises "Cannot compare tz-naive and tz-aware" when checked against
-    # pd.Timestamp.now() for the Observation Period filter below, while
+    # a naive timestamp for the Observation Start/End Date filter below, while
     # "review_date" is already a clean date-only value.
     date_col = (find_col(df, ["review_date"]) or find_col(df, ["Review Date", "date", "Date"])) if not df.empty else None
 
@@ -322,9 +322,15 @@ else:
         else:
             st.markdown("### HYDRA")
         st.header("Filters")
-        # The only user-manipulable filters: Observation Period, Platform, Version.
-        observation_options = ["Last 7 days", "Last 30 days", "Last 90 days"]
-        selected_observation = st.selectbox("Observation Period", observation_options, index=1)
+        # The only user-manipulable filters: Observation Start/End Date, Platform, Version.
+        # The default window (today minus 30 days -> today) matches the former
+        # "Last 30 days" option, so first load looks the same as before.
+        today = datetime.now().date()
+        selected_start_date = st.date_input("Observation Start Date", value=today - timedelta(days=30))
+        selected_end_date = st.date_input("Observation End Date", value=today)
+        date_range_invalid = selected_start_date > selected_end_date
+        if date_range_invalid:
+            st.error("Observation Start Date tidak boleh lebih akhir dari Observation End Date.")
 
         if platform_col:
             platform_options = ["All Platforms"] + sorted(scope_df[platform_col].dropna().astype(str).unique().tolist())
@@ -347,7 +353,13 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # apply the locked filters + Observation Period/Platform/Version to the displayed dataframe
+    # Stopped here (after the sidebar finished rendering, so Logout still works)
+    # rather than inside it; the sidebar already shows the inline error.
+    if date_range_invalid:
+        st.warning("Pilih rentang tanggal yang valid di sidebar (Start Date tidak boleh setelah End Date) untuk menampilkan data.")
+        st.stop()
+
+    # apply the locked filters + Observation Start/End Date + Platform/Version to the displayed dataframe
     filtered_df = df.copy()
     try:
         if industry_col and app_col:
@@ -362,10 +374,13 @@ else:
             filtered_df = filtered_df[filtered_df[version_col].astype(str) == selected_version].copy()
 
         if date_col:
-            observation_days = {"Last 7 days": 7, "Last 30 days": 30, "Last 90 days": 90}.get(selected_observation, 30)
-            parsed_dates = pd.to_datetime(filtered_df[date_col], errors="coerce")
-            cutoff = pd.Timestamp.now() - pd.Timedelta(days=observation_days)
-            filtered_df = filtered_df[parsed_dates >= cutoff].copy()
+            # Both ends are inclusive: the end date covers its whole day, hence the
+            # exclusive "< end date + 1 day" bound. utc=True + tz_localize(None) keeps
+            # the comparison valid even if the column ever carries a UTC offset.
+            parsed_dates = pd.to_datetime(filtered_df[date_col], errors="coerce", utc=True).dt.tz_localize(None)
+            range_start = pd.Timestamp(selected_start_date)
+            range_end_exclusive = pd.Timestamp(selected_end_date) + pd.Timedelta(days=1)
+            filtered_df = filtered_df[(parsed_dates >= range_start) & (parsed_dates < range_end_exclusive)].copy()
     except Exception:
         st.error("Gagal menerapkan filter data.")
         st.stop()
@@ -391,7 +406,7 @@ else:
             <div style="font-size:13px; color:#333;">Product Feedback Dashboard &mdash; printed report</div>
           </div>
           <div style="font-size:12px; color:#444;">
-            {locked_industry} / {locked_company} &nbsp;&middot;&nbsp; {selected_observation}
+            {locked_industry} / {locked_company} &nbsp;&middot;&nbsp; Period: {selected_start_date:%Y-%m-%d} &ndash; {selected_end_date:%Y-%m-%d}
             &nbsp;&middot;&nbsp; Platform: {selected_platform} &nbsp;&middot;&nbsp; Version: {selected_version}
             &nbsp;&middot;&nbsp; Printed {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
           </div>
@@ -411,7 +426,7 @@ else:
         else:
             st.warning(
                 "Ada data untuk akun ini, tetapi tidak ada yang cocok dengan filter yang dipilih. "
-                "Coba perpanjang Observation Period atau set Platform/Version ke All."
+                "Coba perluas rentang Observation Start/End Date atau set Platform/Version ke All."
             )
     else:
         # detect remaining commonly used columns once (sentiment_col/platform_col/
@@ -517,7 +532,7 @@ else:
             st.subheader("Overview")
             st.caption(
                 "Snapshot of overall product health — KPIs, sentiment trend, and category mix for the "
-                "feedback currently in view. Use the sidebar Observation Period, Platform, and Version filters "
+                "feedback currently in view. Use the sidebar Observation Start Date, Observation End Date, Platform, and Version filters "
                 "to narrow every tab at once."
             )
 
@@ -1442,7 +1457,7 @@ else:
                             return "background-color: #fbdada; color: #5c1a1a;"
                     return ""
 
-                styled_delta = delta_df.style.format({c: "{:.2f}" for c in numeric_cols}).applymap(highlight_delta, subset=[delta_col_2, delta_col_3])
+                styled_delta = delta_df.style.format({c: "{:.2f}" for c in numeric_cols}).map(highlight_delta, subset=[delta_col_2, delta_col_3])
                 col_table.dataframe(styled_delta, use_container_width=True, hide_index=True, height=table_height)
 
                 # ---- net sentiment trend over time ----
