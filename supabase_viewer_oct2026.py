@@ -35,6 +35,8 @@ def load_logo_data_uri(filename):
 
 
 LOGO_DATA_URI = load_logo_data_uri("hydralogo.png")
+# Login-card logo: white artwork on transparent; recoloured to black/white by CSS per theme.
+LOGIN_LOGO_URI = load_logo_data_uri("hydranew.png")
 
 # Shown as the "ⓘ" tooltip (via st.metric's help=) wherever "Reputation Score" appears.
 REPUTATION_SCORE_HELP = (
@@ -198,8 +200,7 @@ SUPABASE_TABLE = os.getenv("SUPABASE_TABLE", "reviews")
 if "email" in st.session_state:
     username = st.session_state.email.split("@")[0]
     st.markdown(f'<h1 style="text-align: right;">Hello, {username}</h1>', unsafe_allow_html=True)
-else:
-    st.title("Welcome to HYDRA Dashboard")
+# (Login screen: the HYDRA logo inside the login card replaces the old page title.)
 
 # Simple CSS to add visible borders around selectboxes/columns used below
 st.markdown(
@@ -211,9 +212,6 @@ st.markdown(
     .competitive-columns > div { border: 1px solid #e6e6e6; padding: 8px; border-radius: 6px; }
     /* Request Intelligence: 15px left/right padding on the table and reviews boxes */
     .st-key-ri_table_box, .st-key-ri_reviews_box { padding-left: 15px !important; padding-right: 15px !important; }
-
-    /* Login page: borderless animation panel that scales with the window height. */
-    .st-key-login_art iframe { background: transparent !important; border: 0 !important; border-radius: 0; height: clamp(420px, calc(100vh - 260px), 760px) !important; }
 
     /* Hidden on screen; only shown by the print stylesheet below. */
     .print-only { display: none; }
@@ -344,6 +342,62 @@ def render_login_animation():
         components.html(LOGIN_ANN_HTML, height=LOGIN_ANN_HEIGHT)
 
 
+def _active_theme():
+    """'dark' / 'light' as Streamlit reports it (newer versions), else None."""
+    try:
+        t = st.context.theme.type
+        return t if t in ("dark", "light") else None
+    except Exception:
+        return None
+
+
+def inject_login_css():
+    # Card colours / logo colour per theme. When Streamlit can't tell us the theme
+    # (older versions) fall back to the browser's prefers-color-scheme, which is what
+    # Streamlit's default "match system" theme follows anyway.
+    light = (
+        "--lg-card-bg: rgba(255,255,255,0.86); --lg-card-border: rgba(15,23,42,0.10);"
+        "--lg-card-shadow: 0 24px 60px rgba(15,23,42,0.14); --lg-logo-filter: brightness(0);"
+    )
+    dark = (
+        "--lg-card-bg: rgba(24,26,38,0.80); --lg-card-border: rgba(255,255,255,0.10);"
+        "--lg-card-shadow: 0 24px 60px rgba(0,0,0,0.55); --lg-logo-filter: none;"
+    )
+    theme = _active_theme()
+    if theme == "dark":
+        vars_css = f":root {{ {dark} }}"
+    elif theme == "light":
+        vars_css = f":root {{ {light} }}"
+    else:
+        vars_css = f":root {{ {light} }} @media (prefers-color-scheme: dark) {{ :root {{ {dark} }} }}"
+
+    st.markdown(
+        f"""
+        <style>
+        {vars_css}
+
+        /* Animation: full-window layer behind everything (page background shows through). */
+        .st-key-login_art {{ position: fixed !important; inset: 0; z-index: 0; pointer-events: none; }}
+        .st-key-login_art > div, .st-key-login_art [data-testid="stElementContainer"] {{ width: 100vw !important; height: 100vh !important; }}
+        .st-key-login_art iframe {{ width: 100vw !important; height: 100vh !important; border: 0 !important;
+                                    background: transparent !important; display: block; }}
+
+        /* Login card: centred, rounded, floats above the animation. */
+        .st-key-login_card {{ position: relative; z-index: 1; max-width: 440px; margin: 4vh auto 0 auto;
+                              padding: 2.2rem 2.2rem 1.8rem 2.2rem; border-radius: 22px;
+                              background: var(--lg-card-bg); border: 1px solid var(--lg-card-border);
+                              box-shadow: var(--lg-card-shadow);
+                              -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }}
+        .st-key-login_card [data-testid="stForm"] {{ border: 0 !important; padding: 0 !important; }}
+        .st-key-login_card [data-testid="stFormSubmitButton"] button {{ width: 100%; border-radius: 999px; }}
+        .login-logo {{ display: block; width: 200px; max-width: 70%; height: auto; margin: 0 auto 1.4rem auto;
+                       filter: var(--lg-logo-filter); }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def login_gate():
     """Menahan seluruh app sampai user login; mengisi industry/company dari tabel user_profiles."""
     if "user_id" in st.session_state:
@@ -368,16 +422,17 @@ def login_gate():
                 st.session_state.cookie_restore_failed_token = refresh_token
                 cookie_manager.delete(COOKIE_REFRESH_TOKEN, key="delete_refresh_token_invalid")
 
-    # Layar login: form 30% di kiri, animasi neural network 70% di kanan.
-    # (Di layar sempit Streamlit menumpuk kolom: form dulu, animasi di bawahnya.)
-    col_form, col_art = st.columns([3, 7], gap="large", vertical_alignment="center")
+    # Layar login: animasi ANN memenuhi layar di belakang, kartu login di tengah.
+    inject_login_css()
 
-    with col_art:
-        with st.container(key="login_art"):
-            render_login_animation()
+    with st.container(key="login_art"):
+        render_login_animation()
 
-    with col_form:
-        st.subheader("Login")
+    with st.container(key="login_card"):
+        if LOGIN_LOGO_URI:
+            st.markdown(f'<img class="login-logo" src="{LOGIN_LOGO_URI}" alt="HYDRA">', unsafe_allow_html=True)
+        else:
+            st.markdown("<h2 style='text-align:center'>HYDRA</h2>", unsafe_allow_html=True)
         with st.form("login_form"):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
